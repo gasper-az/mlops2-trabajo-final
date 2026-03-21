@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  graphql-api:
+    build:
+      context: ./apps/graphql-api
+      dockerfile: Dockerfile
+    image: graphql-api:local
+    env_file:
+      - ./.env
+      - ./apps/graphql-api/.env
+    command: ["python", "main.py"] # TO-DO: usar uvicorn.
+  grpc-server:
+    build:
+      context: ./apps/grpc-server
+      dockerfile: Dockerfile
+    image: grpc-server:local
+    env_file:
+      - ./.env
+      - ./apps/grpc-server/.env
+    command: ["python", "main.py"] # TO-DO: usar otro comando.
