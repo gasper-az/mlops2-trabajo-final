@@ -1,21 +1,31 @@
-version: "3.9"
+version: "3.3"
 
 services:
-  graphql-api:
-    build:
-      context: ./apps/graphql-api
-      dockerfile: Dockerfile
-    image: graphql-api:local
-    env_file:
-      - ./.env
-      - ./apps/graphql-api/.env
-    command: ["python", "main.py"] # TO-DO: usar uvicorn.
   grpc-server:
+    container_name: grpc-server
     build:
-      context: ./apps/grpc-server
-      dockerfile: Dockerfile
-    image: grpc-server:local
-    env_file:
-      - ./.env
-      - ./apps/grpc-server/.env
-    command: ["python", "main.py"] # TO-DO: usar otro comando.
+      context: . #./grpc-server
+      dockerfile: grpc-server/Dockerfile
+    ports:
+      - "50051:50051"
+    networks:
+      - project-network
+
+  http-api:
+    container_name: http-api
+    build:
+      context: . #./http-api
+      dockerfile: http-api/Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - grpc-server
+    environment:
+      GRPC_HOST: grpc-server
+      GRPC_PORT: 50051
+    networks:
+      - project-network
+
+networks:
+  project-network:
+    driver: bridge

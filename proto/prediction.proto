@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package prediction;
+
+service PredictionService {
+    rpc Predict (PredictRequest) returns (PredictResponse);
+}
+
+message PredictRequest {
+    repeated float features = 1;
+}
+
+message PredictResponse {
+    float prediction = 1;
+}

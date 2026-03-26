@@ -1,8 +1,0 @@
-# gRPC server
-
-## local run
-
-```bash
-poetry install
-poetry run python main.py
-```

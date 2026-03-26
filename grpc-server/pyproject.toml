@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "grpc-server"
+version = "0.1.0"
+description = "gRPC ML inference server"
+authors = ["Gaspar Acevedo Zain", "Gaspar Acevedo"]
+readme = "README.md"
+packages = [{ include = "grpc_server", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+grpcio = "^1.62.0"
+grpcio-tools = "^1.62.0"
+protobuf = "^6.31.1"
+scikit-learn = "^1.4.1"
+numpy = "^1.26.4"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.2.0"
+mypy = "^1.8.0"
+pytest = "^8.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
