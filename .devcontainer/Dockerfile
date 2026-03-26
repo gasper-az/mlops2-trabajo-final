@@ -10,10 +10,11 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     git \
+    make \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir poetry
 
-RUN pip install --no-cache-dir grpcio grpcio-tools
+RUN pip install --no-cache-dir grpcio grpcio-tools protobuf==6.31.1
 
 SHELL ["/bin/bash", "-c"]
