@@ -1,31 +1,102 @@
-version: "3.3"
+version: "3.9"
 
 services:
-  grpc-server:
-    container_name: grpc-server
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minio minio123 --api S3v4; do sleep 2; done &&
+      mc mb -p local/mlflow || true &&
+      mc anonymous set none local/mlflow
+      "
+    restart: "no"
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_DB: mlflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+  mlflow:
     build:
-      context: . #./grpc-server
+      context: .
+      dockerfile: mlflow/Dockerfile    
+    container_name: mlflow
+    depends_on:
+      - postgres
+      - minio-init
+    environment:
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+    ports:
+      - "5000:5000"
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --allowed-hosts "*" --serve-artifacts
+      --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow
+      --default-artifact-root s3://mlflow/
+
+  trainer:
+    build:
+      context: .
+      dockerfile: trainer/Dockerfile
+    container_name: trainer
+    depends_on:
+      - mlflow
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_EXPERIMENT_NAME: wine-classification
+      MODEL_NAME: WineClassifier
+
+  grpc-server:
+    build:
+      context: .
       dockerfile: grpc-server/Dockerfile
+    container_name: grpc-server
+    depends_on:
+      - mlflow
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_NAME: WineClassifier
+      GRPC_PORT: 50051
     ports:
       - "50051:50051"
-    networks:
-      - project-network
 
   http-api:
-    container_name: http-api
     build:
-      context: . #./http-api
+      context: .
       dockerfile: http-api/Dockerfile
-    ports:
-      - "8000:8000"
+    container_name: http-api
     depends_on:
       - grpc-server
     environment:
-      GRPC_HOST: grpc-server
-      GRPC_PORT: 50051
-    networks:
-      - project-network
-
-networks:
-  project-network:
-    driver: bridge
+      GRPC_SERVER_HOST: grpc-server
+      GRPC_SERVER_PORT: 50051
+    ports:
+      - "8080:8080"
+volumes:
+  minio-data:
+  pg-data:

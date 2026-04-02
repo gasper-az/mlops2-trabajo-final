@@ -15,6 +15,6 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install --no-cache-dir poetry
 
-RUN pip install --no-cache-dir grpcio grpcio-tools protobuf==6.31.1
+RUN pip install --no-cache-dir grpcio grpcio-tools protobuf==6.33.6
 
 SHELL ["/bin/bash", "-c"]

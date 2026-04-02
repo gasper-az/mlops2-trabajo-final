@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from generated import prediction_pb2 as prediction__pb2
+import wine_inference_pb2 as wine__inference__pb2
 
 GRPC_GENERATED_VERSION = '1.78.0'
 GRPC_VERSION = grpc.__version__
@@ -18,14 +18,14 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in prediction_pb2_grpc.py depends on'
+        + ' but the generated code in wine_inference_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
     )
 
 
-class PredictionServiceStub(object):
+class WineInferenceServiceStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -35,13 +35,13 @@ class PredictionServiceStub(object):
             channel: A grpc.Channel.
         """
         self.Predict = channel.unary_unary(
-                '/prediction.PredictionService/Predict',
-                request_serializer=prediction__pb2.PredictRequest.SerializeToString,
-                response_deserializer=prediction__pb2.PredictResponse.FromString,
+                '/wine.inference.v1.WineInferenceService/Predict',
+                request_serializer=wine__inference__pb2.PredictRequest.SerializeToString,
+                response_deserializer=wine__inference__pb2.PredictResponse.FromString,
                 _registered_method=True)
 
 
-class PredictionServiceServicer(object):
+class WineInferenceServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def Predict(self, request, context):
@@ -51,22 +51,22 @@ class PredictionServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 
-def add_PredictionServiceServicer_to_server(servicer, server):
+def add_WineInferenceServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Predict': grpc.unary_unary_rpc_method_handler(
                     servicer.Predict,
-                    request_deserializer=prediction__pb2.PredictRequest.FromString,
-                    response_serializer=prediction__pb2.PredictResponse.SerializeToString,
+                    request_deserializer=wine__inference__pb2.PredictRequest.FromString,
+                    response_serializer=wine__inference__pb2.PredictResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'prediction.PredictionService', rpc_method_handlers)
+            'wine.inference.v1.WineInferenceService', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('prediction.PredictionService', rpc_method_handlers)
+    server.add_registered_method_handlers('wine.inference.v1.WineInferenceService', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class PredictionService(object):
+class WineInferenceService(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
@@ -83,9 +83,9 @@ class PredictionService(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/prediction.PredictionService/Predict',
-            prediction__pb2.PredictRequest.SerializeToString,
-            prediction__pb2.PredictResponse.FromString,
+            '/wine.inference.v1.WineInferenceService/Predict',
+            wine__inference__pb2.PredictRequest.SerializeToString,
+            wine__inference__pb2.PredictResponse.FromString,
             options,
             channel_credentials,
             insecure,

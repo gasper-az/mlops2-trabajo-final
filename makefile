@@ -1,26 +1,27 @@
-PYTHON := python
+PYTHON ?= python
 
-PROTO_FILE=proto/prediction.proto
-PROTO_OUT=generated
+PROTO_DIR := proto
+PROTOGEN_PY_DIR := protogen/python
+PROTO_FILES := $(wildcard $(PROTO_DIR)/*.proto)
 
-.PHONY: proto up down
+.PHONY: proto
 
 proto:
 	@echo "Generando codigo gRPC..."
-	$(PYTHON) -m grpc_tools.protoc \
-		-I proto \
-		--python_out=$(PROTO_OUT) \
-		--grpc_python_out=$(PROTO_OUT) \
-		$(PROTO_FILE)
-	
-	@echo "Arreglando imports..."
-	sed -i 's/^import prediction_pb2/from generated import prediction_pb2/' \
-		$(PROTO_OUT)/prediction_pb2_grpc.py
-	
+	@mkdir -p $(PROTOGEN_PY_DIR)
+	@$(PYTHON) -m grpc_tools.protoc \
+		-I $(PROTO_DIR) \
+		--python_out=$(PROTOGEN_PY_DIR) \
+		--grpc_python_out=$(PROTOGEN_PY_DIR) \
+		$(PROTO_FILES)
+	@find $(PROTOGEN_PY_DIR) -type d -exec touch {}/__init__.py \;
 	@echo "Codigo gRPC generado!!!"
 
 up:
+	@docker compose up -d
+
+up-build:
 	@docker compose up --build -d
 
 down:
-	@docker compose down
+	@docker compose down -v

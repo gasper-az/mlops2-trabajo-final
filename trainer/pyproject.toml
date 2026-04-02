@@ -1,17 +1,16 @@
 [tool.poetry]
-name = "wine-grpc-server"
+name = "wine-trainer"
 version = "0.1.0"
-description = "Servidor de inferencia gRPC para Wine classification."
+description = "Trainer para Wine Classification con MLflow"
 authors = ["Gaspar Acevedo Zain", "Gaspar Acevedo"]
-packages = [{ include = "wine_grpc_server", from = "src" }]
+packages = [{ include = "wine_trainer", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-grpcio = "1.78.0"
-grpcio-tools = "1.78.0"
-protobuf = "^6.33.6"
-mlflow = "3.10.1"
 numpy = "^1.26"
+pandas = "^2.2"
+scikit-learn = "^1.4"
+mlflow = "^3.10.1"
 pydantic = "^2.6"
 
 [tool.poetry.group.dev.dependencies]

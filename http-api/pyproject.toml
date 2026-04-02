@@ -1,18 +1,17 @@
 [tool.poetry]
 name = "http-api"
 version = "0.1.0"
-description = "Cliente FastAPI para servidor gRPC ML"
+description = "Cliente FastAPI para servidor de inferencia gRPC."
 authors = ["Gaspar Acevedo Zain", "Gaspar Acevedo"]
-readme = "README.md"
-packages = [{ include = "http_api", from = "src" }]
+packages = [{ include = "wine_rest_api", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.11"
 fastapi = "^0.110.0"
-uvicorn = "^0.27.1"
-grpcio = "^1.62.0"
-protobuf = "^6.31.1"
-pydantic = "^2.6.3"
+uvicorn = "^0.29"
+grpcio = "1.78.0"
+protobuf = "^6.33.6"
+pydantic = "^2.6"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.2.0"

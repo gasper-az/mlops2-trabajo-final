@@ -114,9 +114,27 @@ docker compose up
 #### REST API
 
 ```bash
-curl -X POST http://localhost:8000/predict \
+curl http://localhost:8080/health
+```
+
+```bash
+curl -X POST http://localhost:8080/predict \
   -H "Content-type: application/json" \
-  -d '{"features":[5.1,3.5,1.4,0.2]}'
+  -d '{
+    "alcohol": 13.2,
+    "malic_acid": 1.7,
+    "ash": 2.3,
+    "alcalinity_of_ash": 15.6,
+    "magnesium": 98,
+    "total_phenols": 2.8,
+    "flavanoids": 3.0,
+    "nonflavanoid_phenols": 0.3, 
+    "proanthocyanins": 1.9,
+    "color_intensity": 5.5,
+    "hue": 1.0,
+    "od280_od315": 3.3,
+    "proline": 3.3,
+  }'
 ```
 
 #### Responses
