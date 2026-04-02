@@ -132,15 +132,13 @@ curl -X POST http://localhost:8080/predict \
     "proanthocyanins": 1.9,
     "color_intensity": 5.5,
     "hue": 1.0,
-    "od280_od315": 3.3,
-    "proline": 3.3,
+    "od280_od315": 3.2,
+    "proline": 520
   }'
 ```
 
 #### Responses
 
-| Value | Clase |
-| --- | --- |
-| 0 | setosa |
-| 1 | versicolor |
-| 2 | virginica |
+```bash
+{"predicted_class":1,"model_version":"latest"}
+```

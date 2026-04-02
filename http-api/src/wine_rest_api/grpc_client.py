@@ -9,7 +9,7 @@ from wine_rest_api.config import (
 )
 
 class GrpcInferenceClient:
-    def __ini__(self):
+    def __init__(self):
         target = f"{GRPC_SERVER_HOST}:{GRPC_SERVER_PORT}"
         self.channel = grpc.insecure_channel(target)
         self.stub = WineInferenceServiceStub(self.channel)
