@@ -142,3 +142,7 @@ curl -X POST http://localhost:8080/predict \
 ```bash
 {"predicted_class":1,"model_version":"latest"}
 ```
+
+#### Prueba de kafka
+
+sudo docker exec -it kafka kafka-console-consumer --bootstrap-server kafka:9092 --topic wine.inference.events --from-beginning
