@@ -93,6 +93,11 @@ Tambien se recomienda ir al [sitio local de Spark](http://localhost:4040/).
 sudo docker logs spark-drift-detector
 ```
 
+## Next Steps
+
+1. Detectar data poisoning con Spark (y su logica de drift).
+1. Agregar out-of-distribution detection en tiempo de inferencia.
+
 ### To organize
 
 > **NOTE**: De aca para abajo es delirio mio. Desestimar hasta que lo organice correctamente.
