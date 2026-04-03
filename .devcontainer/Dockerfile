@@ -17,4 +17,6 @@ RUN pip install --no-cache-dir poetry
 
 RUN pip install --no-cache-dir grpcio grpcio-tools protobuf==6.33.6
 
+RUN pip install requests
+
 SHELL ["/bin/bash", "-c"]

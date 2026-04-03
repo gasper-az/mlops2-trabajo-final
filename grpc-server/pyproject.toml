@@ -2,7 +2,7 @@
 name = "wine-grpc-server"
 version = "0.1.0"
 description = "Servidor de inferencia gRPC para Wine classification."
-authors = ["Gaspar Acevedo Zain", "Gaspar Acevedo"]
+authors = ["Gaspar Acevedo Zain", "Jonathan Borda", "Carlos Villalobos"]
 packages = [{ include = "wine_grpc_server", from = "src" }]
 
 [tool.poetry.dependencies]

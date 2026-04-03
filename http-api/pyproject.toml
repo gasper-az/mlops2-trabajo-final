@@ -2,7 +2,7 @@
 name = "http-api"
 version = "0.1.0"
 description = "Cliente FastAPI para servidor de inferencia gRPC."
-authors = ["Gaspar Acevedo Zain", "Gaspar Acevedo"]
+authors = ["Gaspar Acevedo Zain", "Jonathan Borda", "Carlos Villalobos"]
 packages = [{ include = "wine_rest_api", from = "src" }]
 
 [tool.poetry.dependencies]

@@ -2,7 +2,7 @@
 name = "wine-trainer"
 version = "0.1.0"
 description = "Trainer para Wine Classification con MLflow"
-authors = ["Gaspar Acevedo Zain", "Gaspar Acevedo"]
+authors = ["Gaspar Acevedo Zain", "Jonathan Borda", "Carlos Villalobos"]
 packages = [{ include = "wine_trainer", from = "src" }]
 
 [tool.poetry.dependencies]
