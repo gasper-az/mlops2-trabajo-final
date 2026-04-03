@@ -4,6 +4,8 @@ PROTO_DIR := proto
 PROTOGEN_PY_DIR := protogen/python
 PROTO_FILES := $(wildcard $(PROTO_DIR)/*.proto)
 
+DRIFT_TRAFFIC_FILE := scripts/generate_traffic.py
+
 .PHONY: proto
 
 proto:
@@ -25,3 +27,6 @@ up-build:
 
 down:
 	@docker compose down -v
+
+drift-traffic:
+	@$(PYTHON) $(DRIFT_TRAFFIC_FILE)

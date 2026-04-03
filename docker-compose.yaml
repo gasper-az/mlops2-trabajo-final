@@ -177,6 +177,20 @@ services:
     ports:
       - "8080:8080"
 
+  spark-drift-detector:
+    build:
+      context: .
+      dockerfile: spark-drift-detector/Dockerfile
+    container_name: spark-drift-detector
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./reference:/app/reference
+    restart: unless-stopped
+    ports:
+      - "4040:4040"
+
 volumes:
   minio-data:
   pg-data:
