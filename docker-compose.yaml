@@ -177,6 +177,25 @@ services:
     ports:
       - "8080:8080"
 
+  graphql-api:
+    build:
+      context: .
+      dockerfile: graphql-api/Dockerfile
+    container_name: graphql-api
+    depends_on:
+      mlflow:
+        condition: service_healthy
+      trainer:
+        condition: service_completed_successfully
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_NAME: WineClassifier
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+    ports:
+      - "8090:8090"
+
   spark-drift-detector:
     build:
       context: .

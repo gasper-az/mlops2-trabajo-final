@@ -12,6 +12,7 @@
     - **IMPORTANTE**: no modificar estos archivos.
   - Esto se hace mediante el comando definido en el [makefile](./makefile). Para ello, ejecutar `make proto PYTHON=python`.
 - [REST API](./http-api/): HTTP REST API que tiene un endpoint mediante el cual se hacen predicciones.
+- [GraphQL API](./graphql-api/): API GraphQL (Strawberry) que expone una mutation `predict` cargando el modelo desde MLflow (puerto 8090).
 - Kafka: se utiliza como broker de mensajes. El servidor de inferencia envia resultados de predicciones en este broker.
 - [Spark Drift Detector](./spark-drift-detector/): Permite detectar DRIFT o corrimiento de las distribuciones de los datos.
   - Por el momento, solo las loguea por pantalla.
@@ -41,6 +42,8 @@
 
 ### Como hacer llamados a la REST API?
 
+Documentación interactiva (Swagger UI): [http://localhost:8080/docs](http://localhost:8080/docs)
+
 ```bash
 curl http://localhost:8080/health
 ```
@@ -63,6 +66,51 @@ curl -X POST http://localhost:8080/predict \
     "od280_od315": 3.2,
     "proline": 520
   }'
+```
+
+### Como hacer llamados a la GraphQL API?
+
+Documentación interactiva (GraphiQL): [http://localhost:8090/graphql](http://localhost:8090/graphql)
+
+Health:
+
+```bash
+curl http://localhost:8090/health
+```
+
+Mutation `predict` con `curl` (los campos del input van en **camelCase** en GraphQL):
+
+```bash
+curl -s http://localhost:8090/graphql \
+  -H "Content-Type: application/json" \
+  -d "{\"query\":\"mutation { predict(features: { alcohol: 13.2, malicAcid: 1.7, ash: 2.3, alcalinityOfAsh: 15.6, magnesium: 98, totalPhenols: 2.8, flavanoids: 3.0, nonflavanoidPhenols: 0.3, proanthocyanins: 1.9, colorIntensity: 5.5, hue: 1.0, od280Od315: 3.2, proline: 520 }) { predictedClass modelVersion } }\"}"
+```
+
+Misma mutation en GraphiQL:
+
+```graphql
+mutation {
+  predict(
+    features: {
+      alcohol: 13.2
+      malicAcid: 1.7
+      ash: 2.3
+      alcalinityOfAsh: 15.6
+      magnesium: 98
+      totalPhenols: 2.8
+      flavanoids: 3.0
+      nonflavanoidPhenols: 0.3
+      proanthocyanins: 1.9
+      colorIntensity: 5.5
+      hue: 1.0
+      od280Od315: 3.2
+      proline: 520
+    }
+  ) {
+    predictedClass
+    modelVersion
+  }
+}
 ```
 
 ### Como ejecutar el Drift Detection?
