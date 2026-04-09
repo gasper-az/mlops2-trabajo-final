@@ -25,6 +25,9 @@ up:
 up-build:
 	@docker compose up --build -d
 
+build-no-cache:
+	@docker compose build --no-cache
+
 down:
 	@docker compose down -v
 

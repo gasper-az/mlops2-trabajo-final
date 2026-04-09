@@ -133,13 +133,40 @@ Ejecutar en una terminal el siguiente comando para observar en tiempo real como 
 sudo docker exec -it kafka kafka-console-consumer --bootstrap-server kafka:9092 --topic wine.inference.events
 ```
 
-Ejecutar en una terminal para ver los logs (por el momento, prints en pantalla) de cuando se encuentran drifts.
+Para ver la deteccion de data-drift y/o data-poisoning:
+
+```bash
+sudo docker exec -it kafka kafka-console-consumer --bootstrap-server kafka:9092 --topic wine.security.alerts
+```
+
+Para verlos desde el comienzo:
+
+```bash
+sudo docker exec -it kafka kafka-console-consumer --bootstrap-server kafka:9092 --topic wine.security.alerts --from-beginning
+```
+
+<!-- Ejecutar en una terminal para ver los logs (por el momento, prints en pantalla) de cuando se encuentran drifts.
 Tambien se recomienda ir al [sitio local de Spark](http://localhost:4040/).
 ***NOTA***: se puede ejecutar en Linux y Windows (sacar `sudo`).
 
 ```bash
 sudo docker logs spark-drift-detector
-```
+``` -->
+
+<!-- ### Como configurar Grafana?
+
+1. Ir al sitio http://localhost:3000
+2. Hacer login con admin user.
+3. Una vez hecho login, si grafana solicita cambiar la password, cambiarla o hacer skip.
+4. En el panel izquierdo, ir a `Connections/Data Sources`.
+5. `Add data source` y luego filtrar por `kafka`.
+6. Completar con los siguientes datos;
+   1. Name: cualquier nombre, como `kafka-datasource`
+   2. Connection:
+      1. Bootstrap Server: `kafka:9092`.
+   3. Al final de la pagina, clickear `Save & test`. Esto deberia mostrar un mensaje que dice `Data Source is working`.
+7. En el panel izquierdo, ir a `Explore`
+   1. Topic: `wine.security.alerts`. -->
 
 ## Next Steps
 

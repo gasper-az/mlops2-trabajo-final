@@ -3,6 +3,11 @@ import time
 import requests
 
 URL = "http://localhost:8080/predict"
+REQUEST_DELAY = 0.3
+NORMAL_SAMPLES = 100
+DRIFT_SAMPLES = 200
+POISONING_SAMPLES = 200
+
 
 def normal_sample():
     return {
@@ -15,7 +20,7 @@ def normal_sample():
         "flavanoids": random.normalvariate(2.3, 0.7),
         "nonflavanoid_phenols": random.normalvariate(0.3, 0.1),
         "proanthocyanins": random.normalvariate(1.5, 0.5),
-        "color_intensity": random.normalvariate(5.1, 1.0),
+        "color_intensity": random.normalvariate(5.0, 1.0),
         "hue": random.normalvariate(1.0, 0.2),
         "od280_od315": random.normalvariate(3.0, 0.4),
         "proline": random.normalvariate(750, 300),
@@ -23,12 +28,45 @@ def normal_sample():
 
 def drift_sample():
     s = normal_sample()
-    s["alcohol"] += 3.0
-    s["color_intensity"] += 5.0
-    s["proline"] += 800
+    s["alcohol"] += 2.0
+    s["color_intensity"] += 3.0
+    s["proline"] += 400
     return s
 
-for i in range(300):
-    data = normal_sample() if i < 150 else drift_sample()
-    requests.post(URL, json=data, timeout=3)
-    time.sleep(0.3)
+def poisoning_sample():
+    return {
+        "alcohol": 15.5,
+        "malic_acid": 3.0,
+        "ash": 3.0,
+        "alcalinity_of_ash": 22.0,
+        "magnesium": 140,
+        "total_phenols": 1.2,
+        "flavanoids": 0.8,
+        "nonflavanoid_phenols": 0.6,
+        "proanthocyanins": 0.9,
+        "color_intensity": 11.0,
+        "hue": 0.4,
+        "od280_od315": 1.2,
+        "proline": 1500
+    }
+
+def send_batch(label, generator, count):
+    for i in range(count):
+        payload = generator()
+        try:
+            response = requests.post(
+                URL,
+                json=payload,
+                timeout=3
+            )
+            print(f"{label} #{i+1}: {response.status_code}")
+        except Exception as e:
+            print(f"{label} #{i+1}: ERROR - {e}")
+        time.sleep(REQUEST_DELAY)
+
+if __name__ == "__main__":
+    send_batch("NORMAL", normal_sample, NORMAL_SAMPLES)
+    send_batch("DRIFT", drift_sample, DRIFT_SAMPLES)
+    send_batch("POISONING", poisoning_sample, POISONING_SAMPLES)
+
+    print("Trafico generado satisfactoriamente!!!!")

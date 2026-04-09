@@ -6,6 +6,7 @@ from pyspark.sql.functions import (
     from_json,
     window,
     avg,
+    stddev,
     to_timestamp
 )
 from pyspark.sql.types import (
@@ -14,15 +15,19 @@ from pyspark.sql.types import (
     StringType,
     DoubleType,
     IntegerType,
-    TimestampType,
 )
 
 KAFKA_BOOTSTRAP_SERVERS = "kafka:9092"
 KAFKA_TOPIC = "wine.inference.events"
+ALERT_TOPIC = "wine.security.alerts"
 
-WINDOW_DURATION = "5 minutes"
-SLIDE_DURATION = "1 minute"
+# WINDOW_DURATION = "5 minutes"
+# SLIDE_DURATION = "1 minute"
+WINDOW_DURATION = "1 minutes"
+SLIDE_DURATION = "30 seconds"
 
+DRIFT_Z_THRESHOLD = 3.0 # Drift clasico
+POISON_VARIANCE_RATIO = 0.3 # variance collapse threshold
 PSI_THRESHOLD = 0.2
 
 REFERENCE_STATS_PATH = "/app/reference/reference_stats.json"
@@ -40,23 +45,17 @@ spark = (
 
 spark.sparkContext.setLogLevel("WARN")
 
+#### Carga de features y estadisticas
+
 with open(REFERENCE_STATS_PATH) as f:
     reference_stats = json.load(f)
 
+FEATURES = list(reference_stats.keys())
+
+##### Esquemas de Kafka
+
 features_schema = StructType([
-    StructField("alcohol", DoubleType()),
-    StructField("malic_acid", DoubleType()),
-    StructField("ash", DoubleType()),
-    StructField("alcalinity_of_ash", DoubleType()),
-    StructField("magnesium", DoubleType()),
-    StructField("total_phenols", DoubleType()),
-    StructField("flavanoids", DoubleType()),
-    StructField("nonflavanoid_phenols", DoubleType()),
-    StructField("proanthocyanins", DoubleType()),
-    StructField("color_intensity", DoubleType()),
-    StructField("hue", DoubleType()),
-    StructField("od280_od315", DoubleType()),
-    StructField("proline", DoubleType()),
+    StructField(f, DoubleType()) for f in FEATURES
 ])
 
 schema = StructType([
@@ -67,6 +66,8 @@ schema = StructType([
     StructField("prediction", IntegerType()),
 ])
 
+##### Read stream
+
 raw_df = (
     spark.readStream
     .format("kafka")
@@ -76,14 +77,6 @@ raw_df = (
     .load()
 )
 
-# parsed_df = (
-#     raw_df
-#     .selectExpr("CAST(value AS STRING) as json")
-#     .select(from_json(col("json"), schema).alias("data"))
-#     .select("data.*")
-#     .withColumn("timestamp", col("timestamp").cast(TimestampType))
-# )
-
 parsed_df = (
     raw_df
     .selectExpr("CAST(value AS STRING) as json")
@@ -92,21 +85,30 @@ parsed_df = (
     .withColumn("timestamp", to_timestamp(col("timestamp")))
 )
 
-# Flatten de features
-for feature in reference_stats.keys():
+for feature in FEATURES:
     parsed_df = parsed_df.withColumn(feature, col(f"features.{feature}"))
 
-# Windowed aggregation
-agg_exprs = [
-    avg(col(feature)).alias(feature)
-    for feature in reference_stats.keys()
-]
+##### Windowed aggregation
+aggregations = []
+
+for feature in FEATURES:
+    aggregations.append(avg(col(feature)).alias(f"{feature}_mean"))
+    aggregations.append(stddev(col(feature)).alias(f"{feature}_std"))
 
 windowed_df = (
     parsed_df
     .groupBy(window(col("timestamp"), WINDOW_DURATION, SLIDE_DURATION))
-    .agg(*agg_exprs)
+    .agg(*aggregations)
 )
+
+# Alertas de Kafka
+def publish_alert(alert: dict):
+    spark.createDataFrame([alert]).selectExpr(
+        "to_json(struct(*)) AS value"
+    ).write.format("kafka") \
+    .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS) \
+    .option("topic", ALERT_TOPIC) \
+    .save()
 
 # Drift detection per microbatch
 def detect_drift(batch_df, batch_id):
@@ -125,10 +127,49 @@ def detect_drift(batch_df, batch_id):
                     f"DRIFT DETECTADO:\n\tfeature={feature}\n\tPSI={psi:.3f}"
                 )
 
+##### Logica de deteccion de drift o data poisoning
+def analyze_batch(df, batch_id):
+    rows = df.collect()
+
+    for row in rows:
+        for feature in FEATURES:
+            ref_mean = reference_stats[feature]["mean"]
+            ref_std = reference_stats[feature]["std"]
+            obs_mean = row[f"{feature}_mean"]
+            obs_std = row[f"{feature}_std"]
+
+            # Deteccion de drift mediante z-score
+            if ref_std > 0:
+                z = abs(obs_mean - ref_mean)/ref_std
+            else:
+                z = 0
+
+            # Heuristica para detectar data poisoning
+            variance_ratio = (
+                obs_std / ref_std if ref_std > 0 and obs_std is not None else 1
+            )
+
+            if z > DRIFT_Z_THRESHOLD:
+                alert = {
+                    "feature": feature,
+                    "z_score": z,
+                    "variance_ratio": variance_ratio,
+                    "window_start": row["window"].start.isoformat(),
+                    "window_end": row["window"].end.isoformat()
+                }
+                if variance_ratio < POISON_VARIANCE_RATIO:
+                    alert["alert_type"] = "poisoning"
+                    print("POISONING!!!!!")
+                    publish_alert(alert=alert)
+                else:
+                    alert["alert_type"] = "drift"
+                    print("Drift!!!!!")
+                    publish_alert(alert=alert)
+
 query = (
     windowed_df
     .writeStream
-    .foreachBatch(detect_drift)
+    .foreachBatch(analyze_batch)
     .outputMode("update")
     .start()
 )
