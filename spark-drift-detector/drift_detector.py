@@ -1,13 +1,22 @@
 import json
-import math
+from alerts import Alert
+from datetime import timezone
+from db import (
+    ensure_alerts_table,
+    POSTGRES_JDBC_URL,
+    POSTGRES_PASSWORD,
+    POSTGRES_USER
+)
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
+    avg,
     col,
     from_json,
-    window,
-    avg,
     stddev,
-    to_timestamp
+    to_timestamp,
+    to_json,
+    struct,
+    window,
 )
 from pyspark.sql.types import (
     StructType,
@@ -15,6 +24,7 @@ from pyspark.sql.types import (
     StringType,
     DoubleType,
     IntegerType,
+    TimestampType
 )
 
 KAFKA_BOOTSTRAP_SERVERS = "kafka:9092"
@@ -23,37 +33,35 @@ ALERT_TOPIC = "wine.security.alerts"
 
 # WINDOW_DURATION = "5 minutes"
 # SLIDE_DURATION = "1 minute"
+# WINDOW_DURATION = "1 minutes"
+# SLIDE_DURATION = "30 seconds"
 WINDOW_DURATION = "1 minutes"
-SLIDE_DURATION = "30 seconds"
+SLIDE_DURATION = "10 seconds"
 
 DRIFT_Z_THRESHOLD = 3.0 # Drift clasico
 POISON_VARIANCE_RATIO = 0.3 # variance collapse threshold
-PSI_THRESHOLD = 0.2
 
-REFERENCE_STATS_PATH = "/app/reference/reference_stats.json"
+REFERENCE_STATS_PATH = "/opt/app/reference/reference_stats.json"
 
-def compute_psi(expected_mean, expected_std, actual_mean):
-    if expected_std == 0:
-        return 0.0
-    return abs((actual_mean - expected_mean)/expected_std)
+MODEL_NAME = "wine-classifier"
+
+ensure_alerts_table()
 
 spark = (
     SparkSession.builder
-    .appName("WineDriftDetector")
+    .appName("WineDriftAndPoisoningDetector")
     .getOrCreate()
 )
 
 spark.sparkContext.setLogLevel("WARN")
 
 #### Carga de features y estadisticas
-
-with open(REFERENCE_STATS_PATH) as f:
+with open(REFERENCE_STATS_PATH, "r") as f:
     reference_stats = json.load(f)
 
 FEATURES = list(reference_stats.keys())
 
 ##### Esquemas de Kafka
-
 features_schema = StructType([
     StructField(f, DoubleType()) for f in FEATURES
 ])
@@ -67,7 +75,6 @@ schema = StructType([
 ])
 
 ##### Read stream
-
 raw_df = (
     spark.readStream
     .format("kafka")
@@ -95,81 +102,109 @@ for feature in FEATURES:
     aggregations.append(avg(col(feature)).alias(f"{feature}_mean"))
     aggregations.append(stddev(col(feature)).alias(f"{feature}_std"))
 
-windowed_df = (
+windowed_stats_df = (
     parsed_df
     .groupBy(window(col("timestamp"), WINDOW_DURATION, SLIDE_DURATION))
     .agg(*aggregations)
 )
 
-# Alertas de Kafka
-def publish_alert(alert: dict):
-    spark.createDataFrame([alert]).selectExpr(
-        "to_json(struct(*)) AS value"
-    ).write.format("kafka") \
-    .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS) \
-    .option("topic", ALERT_TOPIC) \
-    .save()
+def publish_alert_to_kafka_topic(alerts):
+    if not alerts:
+        return
+    
+    df = spark.createDataFrame(alerts)
 
-# Drift detection per microbatch
-def detect_drift(batch_df, batch_id):
+    df \
+        .select(to_json(struct(*df.columns)).alias("value")) \
+        .write \
+        .format("kafka") \
+        .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS) \
+        .option("topic", ALERT_TOPIC) \
+        .save()
+
+def write_alerts_to_postgres(alerts):
+    if not alerts:
+        return
+    
+    df = spark.createDataFrame(alerts)
+
+    df.write \
+        .format("jdbc") \
+        .option("url", POSTGRES_JDBC_URL) \
+        .option("dbtable", "security_alerts") \
+        .option("user", POSTGRES_USER) \
+        .option("password", POSTGRES_PASSWORD) \
+        .option("driver", "org.postgresql.Driver") \
+        .option("batchsize", "1000") \
+        .option("isolationLevel", "READ_COMMITTED") \
+        .option("truncate", "false") \
+        .mode("append") \
+        .save()
+
+def generate_alerts_and_persist(batch_df, batch_id):
+    if batch_df.rdd.isEmpty():
+        return
+    
     rows = batch_df.collect()
-    for row in rows:
-        for feature, stats in reference_stats.items():
-            psi = compute_psi(
-                expected_mean=stats["mean"],
-                expected_std=stats["std"],
-                actual_mean=row[feature]
-            )
-
-            if psi > PSI_THRESHOLD:
-                print("="*20)
-                print(
-                    f"DRIFT DETECTADO:\n\tfeature={feature}\n\tPSI={psi:.3f}"
-                )
-
-##### Logica de deteccion de drift o data poisoning
-def analyze_batch(df, batch_id):
-    rows = df.collect()
+    alerts = []
 
     for row in rows:
         for feature in FEATURES:
-            ref_mean = reference_stats[feature]["mean"]
-            ref_std = reference_stats[feature]["std"]
-            obs_mean = row[f"{feature}_mean"]
-            obs_std = row[f"{feature}_std"]
+            mean = row[f"{feature}_mean"]
+            std = row[f"{feature}_std"]
+            w_start = row.window.start.replace(tzinfo=timezone.utc)
+            w_end = row.window.end.replace(tzinfo=timezone.utc)
 
-            # Deteccion de drift mediante z-score
-            if ref_std > 0:
-                z = abs(obs_mean - ref_mean)/ref_std
-            else:
-                z = 0
+            reference = reference_stats.get(feature)
+
+            if not reference:
+                continue
+
+            reference_mean = reference["mean"]
+            reference_std = reference["std"]
+
+            if reference_std <= 0:
+                continue
+
+            # Detector de Data Drifting
+            z = abs(mean - reference_mean)/reference_std
 
             # Heuristica para detectar data poisoning
             variance_ratio = (
-                obs_std / ref_std if ref_std > 0 and obs_std is not None else 1
+                std / reference_std if reference_std > 0 and std is not None else 1
             )
 
             if z > DRIFT_Z_THRESHOLD:
-                alert = {
-                    "feature": feature,
-                    "z_score": z,
-                    "variance_ratio": variance_ratio,
-                    "window_start": row["window"].start.isoformat(),
-                    "window_end": row["window"].end.isoformat()
-                }
+                alert = Alert(
+                    timestamp=Alert.now_iso(),
+                    alert_type="drift",
+                    feature=feature,
+                    z_score=float(z),
+                    variance_ratio=variance_ratio,
+                    window_start=w_start,
+                    window_end=w_end,
+                    model_name=MODEL_NAME
+                )
+
+                print("="*80)
+                print(f"Alerta: {alert}")
+                print("="*80)
+                
                 if variance_ratio < POISON_VARIANCE_RATIO:
-                    alert["alert_type"] = "poisoning"
-                    print("POISONING!!!!!")
-                    publish_alert(alert=alert)
-                else:
-                    alert["alert_type"] = "drift"
-                    print("Drift!!!!!")
-                    publish_alert(alert=alert)
+                    alert.alert_type = "poisoning"
+
+                alerts.append(alert)
+        
+    if not alerts:
+        return
+    
+    write_alerts_to_postgres(alerts=alerts)
+    publish_alert_to_kafka_topic(alerts=alerts)
 
 query = (
-    windowed_df
+    windowed_stats_df
     .writeStream
-    .foreachBatch(analyze_batch)
+    .foreachBatch(generate_alerts_and_persist)
     .outputMode("update")
     .start()
 )

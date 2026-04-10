@@ -153,20 +153,42 @@ Tambien se recomienda ir al [sitio local de Spark](http://localhost:4040/).
 sudo docker logs spark-drift-detector
 ``` -->
 
-<!-- ### Como configurar Grafana?
+### Como configurar Grafana?
 
 1. Ir al sitio http://localhost:3000
 2. Hacer login con admin user.
 3. Una vez hecho login, si grafana solicita cambiar la password, cambiarla o hacer skip.
 4. En el panel izquierdo, ir a `Connections/Data Sources`.
-5. `Add data source` y luego filtrar por `kafka`.
+5. `Add data source` y luego filtrar por `PostgreSQL`.
 6. Completar con los siguientes datos;
-   1. Name: cualquier nombre, como `kafka-datasource`
+   1. Name: cualquier nombre, como `postgresql-source`
    2. Connection:
-      1. Bootstrap Server: `kafka:9092`.
-   3. Al final de la pagina, clickear `Save & test`. Esto deberia mostrar un mensaje que dice `Data Source is working`.
-7. En el panel izquierdo, ir a `Explore`
-   1. Topic: `wine.security.alerts`. -->
+      1. Host URL: `postgres:5432`.
+      2. Database name: `mlflow`.
+   3. Authentication:
+      1. Username: `mlflow`.
+      2. Password: `mlflow`.
+      3. TLS/SSL Mode: `disabled`.
+   4. Al final de la pagina, clickear `Save & test`. Esto deberia mostrar un mensaje que dice `Database connection OK`.
+   5. En la URL, copiar el `UID` del dashboard. Ejemplo: `http://localhost:3000/connections/datasources/edit/***afin5lvhpbls0b***`.
+7. Agregar Dashboard
+   1. En el panel izquierdo, ir a `Dashboards`.
+   2. `Create Dashboard`.
+   3. `import`.
+   4. Pegar el codigo de [security_alerts.json](./grafana/security_alerts.json).
+   5. Presionar `load`.
+   6. Luego, cambiar el `UID` con el correspondiente de tu data source.
+   7. `Import`.
+
+### PostgreSQL
+
+```bash
+sudo docker exec -it postgres psql -U mlflow -d mlflow
+```
+
+```bash
+SELECT * from security_alerts ORDER BY timestamp DESC;
+```
 
 ## Next Steps
 

@@ -4,9 +4,9 @@ import requests
 
 URL = "http://localhost:8080/predict"
 REQUEST_DELAY = 0.3
-NORMAL_SAMPLES = 100
+NORMAL_SAMPLES = 10
 DRIFT_SAMPLES = 200
-POISONING_SAMPLES = 200
+POISONING_SAMPLES = 300
 
 
 def normal_sample():
@@ -36,14 +36,14 @@ def drift_sample():
 def poisoning_sample():
     return {
         "alcohol": 15.5,
-        "malic_acid": 3.0,
-        "ash": 3.0,
-        "alcalinity_of_ash": 22.0,
-        "magnesium": 140,
-        "total_phenols": 1.2,
-        "flavanoids": 0.8,
-        "nonflavanoid_phenols": 0.6,
-        "proanthocyanins": 0.9,
+        "malic_acid": 4.0,
+        "ash": 4.0,
+        "alcalinity_of_ash": 24.0,
+        "magnesium": 150,
+        "total_phenols": 1.0,
+        "flavanoids": 0.6,
+        "nonflavanoid_phenols": 0.9,
+        "proanthocyanins": 0.7,
         "color_intensity": 11.0,
         "hue": 0.4,
         "od280_od315": 1.2,

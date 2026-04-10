@@ -200,15 +200,33 @@ services:
     build:
       context: .
       dockerfile: spark-drift-detector/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: mlflow
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/mlflow
     container_name: spark-drift-detector
     depends_on:
       kafka:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     volumes:
-      - ./reference:/app/reference
+      - ./reference:/opt/app/reference
     restart: unless-stopped
     ports:
       - "4040:4040"
+
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy    
 
 volumes:
   minio-data:
