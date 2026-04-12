@@ -1,6 +1,7 @@
 import json
 import uuid
 from wine_grpc_server.config  import (
+    KAFKA_ALERT_TOPIC,
     KAFKA_BOOTSTRAP_SERVERS,
     KAFKA_TOPIC
 )
@@ -31,3 +32,22 @@ def publish_inference_event(
     }
 
     producer.send(KAFKA_TOPIC, event)
+
+def publish_ood_event(
+        *,
+        model_name: str,
+        score: float,
+) -> None:
+    event = {
+        "alert_type": "ood",
+        "feature": "ALL_FEATURES",
+        "model_name": model_name,
+        "schema_version": 1,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "variance_ratio": 0,
+        "window_end": "",
+        "window_start": "",
+        "z_score": score
+    }
+
+    producer.send(KAFKA_ALERT_TOPIC, event)

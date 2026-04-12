@@ -190,6 +190,10 @@ sudo docker exec -it postgres psql -U mlflow -d mlflow
 SELECT * from security_alerts ORDER BY timestamp DESC;
 ```
 
+```bash
+SELECT * from ood_alerts ORDER BY timestamp DESC;
+```
+
 ## Next Steps
 
 1. Detectar data poisoning con Spark (y su logica de drift).

@@ -7,6 +7,7 @@ REQUEST_DELAY = 0.3
 NORMAL_SAMPLES = 10
 DRIFT_SAMPLES = 200
 POISONING_SAMPLES = 300
+OOD_SAMPLES = 20
 
 
 def normal_sample():
@@ -50,6 +51,23 @@ def poisoning_sample():
         "proline": 1500
     }
 
+def ood_sample():
+    return {
+        "alcohol": 50.0,
+        "malic_acid": 20.0,
+        "ash": 10.0,
+        "alcalinity_of_ash": 80.0,
+        "magnesium": 500,
+        "total_phenols": 10.0,
+        "flavanoids": 10.0,
+        "nonflavanoid_phenols": 5.0,
+        "proanthocyanins": 8.0,
+        "color_intensity": 30.0,
+        "hue": -1.0,
+        "od280_od315": 10.0,
+        "proline": 5000
+    }
+
 def send_batch(label, generator, count):
     for i in range(count):
         payload = generator()
@@ -68,5 +86,6 @@ if __name__ == "__main__":
     send_batch("NORMAL", normal_sample, NORMAL_SAMPLES)
     send_batch("DRIFT", drift_sample, DRIFT_SAMPLES)
     send_batch("POISONING", poisoning_sample, POISONING_SAMPLES)
+    send_batch("OOD", ood_sample, OOD_SAMPLES)
 
     print("Trafico generado satisfactoriamente!!!!")

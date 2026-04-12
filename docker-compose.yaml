@@ -132,7 +132,10 @@ services:
       AWS_ACCESS_KEY_ID: minio
       AWS_SECRET_ACCESS_KEY: minio123
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      OOD_STATS_PATH: /opt/reference/ood_reference_stats.npz
     restart: "no"
+    volumes:
+      - ./reference:/opt/reference
 
   grpc-server:
     build:
@@ -147,14 +150,24 @@ services:
       trainer:
         condition: service_completed_successfully
     environment:
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      MODEL_NAME: WineClassifier
-      GRPC_PORT: 50051
-      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
-      KAFKA_TOPIC: wine.inference.events
       AWS_ACCESS_KEY_ID: minio
       AWS_SECRET_ACCESS_KEY: minio123
-      MLFLOW_S3_ENDPOINT_URL: http://minio:9000      
+      GRPC_PORT: 50051
+      KAFKA_ALERT_TOPIC: wine.security.alerts
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC: wine.inference.events
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_NAME: WineClassifier
+      OOD_HIGH: 25.0
+      OOD_LOW: 10.0
+      OOD_STATS_PATH: /opt/app/reference/ood_reference_stats.npz
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: mlflow
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/mlflow
     ports:
       - "50051:50051"
     healthcheck:
@@ -162,6 +175,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    volumes:
+      - ./reference:/opt/app/reference
 
   http-api:
     build:
@@ -201,12 +216,29 @@ services:
       context: .
       dockerfile: spark-drift-detector/Dockerfile
     environment:
+      ALERT_TOPIC: wine.security.alerts
+      DRIFT_Z_THRESHOLD: 3.0
+      KAFKA_ALERT_TOPIC: wine.security.alerts
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC: wine.inference.events
+      MODEL_NAME: WineClassifier
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: mlflow
       POSTGRES_USER: mlflow
       POSTGRES_PASSWORD: mlflow
       POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/mlflow
+      REFERENCE_STATS_PATH: "/opt/app/reference/reference_stats.json"
+      POISON_VARIANCE_RATIO: 0.3
+      ### CONFIG A
+      # SLIDE_DURATION: "10 seconds"
+      # WINDOW_DURATION: "1 minutes"
+      ### CONFIG B
+      SLIDE_DURATION: "1 minutes"
+      WINDOW_DURATION: "5 minutes"
+      ### CONFIG C
+      # SLIDE_DURATION: "30 seconds"
+      # WINDOW_DURATION: "1 minutes"
     container_name: spark-drift-detector
     depends_on:
       kafka:

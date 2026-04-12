@@ -2,15 +2,22 @@ import grpc
 import numpy as np
 from concurrent import futures
 
-from wine_grpc_server.kafka_producer import publish_inference_event
-from wine_grpc_server.model import load_model
 from wine_grpc_server.config import (
     GRPC_PORT,
     MODEL_NAME
 )
+from wine_grpc_server.kafka_producer import (
+    publish_inference_event,
+    publish_ood_event
+)
+from wine_grpc_server.model import load_model
+from wine_grpc_server.ood import compute_ood
+from wine_grpc_server.postgres import persist_ood_alert
 
 import wine_inference_pb2
 import wine_inference_pb2_grpc
+
+# Se asegura la creacion de la tabla
 
 class WineInferenceService(
     wine_inference_pb2_grpc.WineInferenceServiceServicer
@@ -35,6 +42,8 @@ class WineInferenceService(
             "proline": request.proline,
         }
 
+        score, severity = compute_ood(features=features)
+
         prediction = int(self.model.predict(
             [[*features.values()]]
         )[0])
@@ -43,6 +52,17 @@ class WineInferenceService(
             features=features,
             model_name=MODEL_NAME,
             prediction=prediction
+        )
+
+        publish_ood_event(
+            model_name=MODEL_NAME,
+            score=score
+        )
+
+        persist_ood_alert(
+            model_name=MODEL_NAME,
+            score=score,
+            severity=severity
         )
 
         return wine_inference_pb2.PredictResponse(

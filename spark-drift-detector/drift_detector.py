@@ -1,11 +1,20 @@
 import json
+import os
 from alerts import Alert
 from datetime import timezone
-from db import (
-    ensure_alerts_table,
+from config import (
+    ALERT_TOPIC,
+    DRIFT_Z_THRESHOLD,
+    KAFKA_BOOTSTRAP_SERVERS,
+    KAFKA_TOPIC,
+    MODEL_NAME,
+    POISON_VARIANCE_RATIO,
     POSTGRES_JDBC_URL,
     POSTGRES_PASSWORD,
-    POSTGRES_USER
+    POSTGRES_USER,
+    REFERENCE_STATS_PATH,
+    SLIDE_DURATION,
+    WINDOW_DURATION
 )
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
@@ -24,28 +33,7 @@ from pyspark.sql.types import (
     StringType,
     DoubleType,
     IntegerType,
-    TimestampType
 )
-
-KAFKA_BOOTSTRAP_SERVERS = "kafka:9092"
-KAFKA_TOPIC = "wine.inference.events"
-ALERT_TOPIC = "wine.security.alerts"
-
-# WINDOW_DURATION = "5 minutes"
-# SLIDE_DURATION = "1 minute"
-# WINDOW_DURATION = "1 minutes"
-# SLIDE_DURATION = "30 seconds"
-WINDOW_DURATION = "1 minutes"
-SLIDE_DURATION = "10 seconds"
-
-DRIFT_Z_THRESHOLD = 3.0 # Drift clasico
-POISON_VARIANCE_RATIO = 0.3 # variance collapse threshold
-
-REFERENCE_STATS_PATH = "/opt/app/reference/reference_stats.json"
-
-MODEL_NAME = "wine-classifier"
-
-ensure_alerts_table()
 
 spark = (
     SparkSession.builder

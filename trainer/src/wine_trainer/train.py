@@ -9,10 +9,12 @@ from wine_trainer.config import (
     EXPERIMENT_NAME,
     MLFLOW_TRACKING_URI,
     MODEL_NAME,
+    OOD_STATS_PATH,
     RANDOM_STATE,
     TEST_SIZE
 )
 from wine_trainer.data import load_dataset
+from wine_trainer.ood import save_ood_stats
 from wine_trainer.stats import compute_reference_stats
 
 def main() -> None:
@@ -69,6 +71,9 @@ def main() -> None:
     print("Training completed!!!")
     print(f"Accuracy: {accuracy:.4f}")
     print(f"F1-score: {f1:.4f}")
+
+    save_ood_stats(X_train=X_train, path=OOD_STATS_PATH)
+    print("OOD reference saved!!!")
 
 if __name__ == "__main__":
     main()
