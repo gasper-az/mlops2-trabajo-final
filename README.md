@@ -1,26 +1,57 @@
-# MLOps 2 - Trabajo Final 
+# MLOps 2 - Trabajo Final
 
-## Componentes
+## Integrantes
 
-- [MLFlow](./mlflow/): tracking server. Permite loguear modelos y metricas de estos.
+- Acevedo Zain, Gaspar (acevedo.zain.gaspar@gmail.com)
+- Borda, Jonathan (jonathanmatiasborda@gmail.com)
+- Villalobos, Carlos (carlosvillalobosh3@gmail.com)
+
+## ¿En qué consiste este trabajo?
+
+Este trabajo consiste en un *servidor de inferencia* que permite clasificar la calidad de un vino a partir de determinados datos.
+En cada predicción se realiza un análisis para detectar *data-drift*, *data-poisoning* y *out-of-distribution detection*.
+Cada caso positivo genera una alerta distinta, la cual es persistida en una base de datos *PostgreSQL*.
+Todas las alertas generadas son graficadas en dashboard de *Grafana*, con el fin de que un determinado usuario/administrador pueda tomar las decisiones pertinentes.
+
+### ¿Cuáles son los componentes del sistema?
+
+A continuación, se detallan los componentes del sitema
+
+![componentes](./documentos/componentes.drawio.png)
+
+- [Trainer](./trainer/): entrena un modelo **LogisticRegression** utilizando el [Wine Quality Dataset](https://www.kaggle.com/datasets/yasserh/wine-quality-dataset) y lo registra en `MLFlow`.
+- [MLFlow](./mlflow/): tracking server y model registry. Permite loguear modelos y metricas de estos.
   - Implementa `Minio` para almacenar datos.
   - Implementa `PostgreSQL` para almacenar datos.
-- [Trainer](./trainer/): entrena un modelo LogisticRegression utilizando el [Wine Quality Dataset](https://www.kaggle.com/datasets/yasserh/wine-quality-dataset) y lo loguea en MLFlow.
-- [gRPC server](./grpc-server/): servidor de inferencia, que expone un endpoint para realizar predicciones mediante el modelo anterior.
-  - Es importante remarcar que en la carpeta [proto](./proto/) se encuentra la definicion de este servicio.
-  - A partir de este [proto](./proto/) se crea los archivos [protogen](./protogen/), mas precisamente, los archivos de python.
-    - **IMPORTANTE**: no modificar estos archivos.
-  - Esto se hace mediante el comando definido en el [makefile](./makefile). Para ello, ejecutar `make proto PYTHON=python`.
-- [REST API](./http-api/): HTTP REST API que tiene un endpoint mediante el cual se hacen predicciones.
+- [gRPC server](./grpc-server/): *servidor de inferencia*, que permite realizar predicciones como así también generar distintos tipos de alertas.
+  - Mediante el endpoint `Predict`, permite realizar predicciones utilizando el modelo **LogisticRegression**, el cual obtiene desde `MLFlow`.
+  - Por cada predicción realizada, envía un mensaje con sus datos y resultados al *topic* de `Kafka` de `wine.inference.events`.
+  - Por cada predicción realizada, realiza un análisis de *out-of-distribution detection*. Los resultados se envían al *topic* de `Kafka` de `wine.security.alerts`, como así también se persisten en las tablas `security_alerts` y `ood_alerts` de `PostgreSQL`.
+- [REST API](./http-api/): HTTP REST API. Expone el endpoint `predict`, el cual permite realizar predicciones de la calidad de un vino. Internamente, llama al [gRPC server](./grpc-server/).
 - [GraphQL API](./graphql-api/): API GraphQL (Strawberry) que expone una mutation `predict` cargando el modelo desde MLflow (puerto 8090).
-- Kafka: se utiliza como broker de mensajes. El servidor de inferencia envia resultados de predicciones en este broker.
-- [Spark Drift Detector](./spark-drift-detector/): Permite detectar DRIFT o corrimiento de las distribuciones de los datos.
-  - Por el momento, solo las loguea por pantalla.
-  - Implementa Spark, procesando en tiempo real los resultados de las inferencias enviadas en un broker de Kafka desde el servidor de inferencia.
-- [Carpeta reference](./reference/): contiene un archivo con el formato de las estadisticas/metricas de referencia de cada feature utilizada. Se obtuvo desde mlflow.
-- [Scripts - generate_traffic](./scripts/generate_traffic.py): permite generar trafico *falso* a fin de probar el funcionamiento del detector de drift de Spark.
+- `Kafka`: se utiliza como broker de mensajes.
+  - El topic `wine.inference.events` contiene mensajes con información de cada predicción realizada. Estos son los datos enviados por los usuarios, como así también los resultados.
+  - El topic `wine.security.alerts` contiene alertas de `drift detection`, `poisoning detection` y `out-of-distribution detection`.
+- [Spark Drift Detector](./spark-drift-detector/): Permite detectar corrimiento de las distribuciones de los datos mediante el uso de `Spark`.
+  - Analiza los mensajes del topic `wine.inference.events`, utilizando una determinada ventana de tiempo.
+  - En caso de detectar un caso de `drift` y/o `poisoning` de datos, genera un alerta al *topic* de `wine.security.alerts`, como así también se persiste en la tabla `security_alerts` de `PostgreSQL`.
+- `PostgreSQL`: base de datos en donde se persisten datos de las distintas alertas detectadas por el sistema. También persiste información relacionada al servidor de `MLFlow`.
+  - Tabla `security_alerts`: contiene información de alertas del tipo `drift`, `poisoning` y `out-of-distribution`.
+  - Tabla `ood_alerts`: contiene información exclusiva de alertas del tipo `out-of-distribution`.
+- [Grafana](./grafana/): permite visualizar, monitorear y analizar en tiempo real las alertas de detección de `data-drift`, `data poisoning` y `out-of-distribution`.
 
-### Como ejecutar la aplicacion?
+**Otros componentes**
+
+- Carpeta [proto](./proto/): contiene la definición del esquema y los contratos utilizados por el *servidor de inferencia* [gRPC server](./grpc-server/).
+- Carpeta [protogen](./protogen/): contiene el código generado a partir de los stubs de gRPC. **NO** debe ser modificado.
+- Carpeta [reference](./reference/): contiene los siguientes archivos de utilidades:
+  - [ood_reference_stats](./reference/ood_reference_stats.npz): estadísticas de referencia utilizadas para detectar `out-of-distribution`, mas precisamente, la media y la matriz de covarianzas del dataset.
+  - [reference_stats](./reference/reference_stats.json): contiene estadísticas de la media, la varianza, el valor máximo y el valor mínimo de cada variable del dataset. Se utiliza para detectar `drift` o `poisoning` de datos.
+- Carpeta [scripts](./scripts/): contiene el archivo [generate_traffic.py](./scripts/generate_traffic.py), que permite generar tráfico **FALSO** a fin de analizar qué tan bien detecta el sistema los distintos tipos de alertas. 
+
+## How-to
+
+### ¿Cómo ejecutar la aplicacion?
 
 **Prerequisito**
 
@@ -40,7 +71,7 @@
    1. Alternativa: `make up-build` para hacer build de la aplicacion
 2. `make down` para eliminar los containers + volumenes.
 
-### Como hacer llamados a la REST API?
+### ¿Cómo hacer llamados a la REST API?
 
 Documentación interactiva (Swagger UI): [http://localhost:8080/docs](http://localhost:8080/docs)
 
@@ -68,7 +99,7 @@ curl -X POST http://localhost:8080/predict \
   }'
 ```
 
-### Como hacer llamados a la GraphQL API?
+### ¿Cómo hacer llamados a la GraphQL API?
 
 Documentación interactiva (GraphiQL): [http://localhost:8090/graphql](http://localhost:8090/graphql)
 
@@ -113,7 +144,7 @@ mutation {
 }
 ```
 
-### Como ejecutar el Drift Detection?
+### ¿Cómo ejecutar el generador de tráfico?
 
 **Mediante python**
 
@@ -126,7 +157,7 @@ Ejecutar `python scripts/generate_traffic.py` en una terminal.
 
 **Recomendaciones**
 
-Ejecutar en una terminal el siguiente comando para observar en tiempo real como Kafka procesa los eventos que recibe del inference server.
+Ejecutar en una terminal el siguiente comando para observar en tiempo real como Kafka procesa los eventos que recibe del *inference server*.
 ***NOTA***: se puede ejecutar en Linux y Windows (sacar `sudo`).
 
 ```bash
@@ -153,7 +184,7 @@ Tambien se recomienda ir al [sitio local de Spark](http://localhost:4040/).
 sudo docker logs spark-drift-detector
 ``` -->
 
-### Como configurar Grafana?
+### ¿Cómo configurar Grafana?
 
 1. Ir al sitio http://localhost:3000
 2. Hacer login con admin user.
@@ -180,7 +211,7 @@ sudo docker logs spark-drift-detector
    6. Luego, cambiar el `UID` con el correspondiente de tu data source.
    7. `Import`.
 
-### PostgreSQL
+### ¿Cómo hacer consultas en PostgreSQL?
 
 ```bash
 sudo docker exec -it postgres psql -U mlflow -d mlflow
