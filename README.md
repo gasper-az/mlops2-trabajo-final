@@ -45,9 +45,58 @@ A continuación, se detallan los componentes del sitema
 - Carpeta [proto](./proto/): contiene la definición del esquema y los contratos utilizados por el *servidor de inferencia* [gRPC server](./grpc-server/).
 - Carpeta [protogen](./protogen/): contiene el código generado a partir de los stubs de gRPC. **NO** debe ser modificado.
 - Carpeta [reference](./reference/): contiene los siguientes archivos de utilidades:
-  - [ood_reference_stats](./reference/ood_reference_stats.npz): estadísticas de referencia utilizadas para detectar `out-of-distribution`, mas precisamente, la media y la matriz de covarianzas del dataset.
+  - [ood_reference_stats](./reference/ood_reference_stats.npz): estadísticas de referencia utilizadas para detectar `out-of-distribution`, mas precisamente, la media y la inversa de la matriz de covarianzas del dataset.
   - [reference_stats](./reference/reference_stats.json): contiene estadísticas de la media, la varianza, el valor máximo y el valor mínimo de cada variable del dataset. Se utiliza para detectar `drift` o `poisoning` de datos.
-- Carpeta [scripts](./scripts/): contiene el archivo [generate_traffic.py](./scripts/generate_traffic.py), que permite generar tráfico **FALSO** a fin de analizar qué tan bien detecta el sistema los distintos tipos de alertas. 
+- Carpeta [scripts](./scripts/): contiene el archivo [generate_traffic.py](./scripts/generate_traffic.py), que permite generar tráfico **FALSO** a fin de analizar qué tan bien detecta el sistema los distintos tipos de alertas.
+
+### Detección de alertas
+
+Este sistema tiene como objetivo realizar predicciones relacionadas a la calidad de un vino dados sus datos.
+
+Si bien las distribuciones del dataset [Wine Quality Dataset](https://www.kaggle.com/datasets/yasserh/wine-quality-dataset) son conocidas, al poner el sistema en producción y disponibilizarlo para distintos usuarios, puede llegar a suceder que se reciban datos que estén **fuera** de estas distribuciones.
+
+Estos casos deben ser detectados y analizados correctamente, ya que resulta fundamental determinar si corresponden a un cambio *natural* de las distribuciones, errores de los usuarios, o incluso ataques maliciosos.
+
+Por este motivo, se propone detectar y persistir para su posterior análisis los siguientes tipos de alertas:
+
+- Data drift y data poisoning: se determina mediante una ventana de tiempo. Se hace en paralelo ya que pueden ocurrir a la vez.
+- **Out-of-distribution**: a diferencia del caso anterior, este tipo de análisis se puede hacer por cada petición recibida.
+
+### Alerta Out-of-distribution
+
+Nuestro modelo fue entrenado con dataset cuyos datos tienen distribuciones predeterminadas. No obstante, puede suceder que al, momento de realizar inferencias, el modelo trabaje con datos que no estuvieron disponibles en tiempo de entrenamiento.
+
+Estos datos pueden corresponder a errores en los inputs, actividad maliciosa, *outliers* estadísticos o incluso a un corrimiento orgánico de la distribución original.
+
+Aquí es donde aparece la detección de casos `out-of-distribution`, es decir, detectar aquellos casos en los que a un modelo se les presenta un dato que no pertenece a las categorías o patrones estadísticos con los que fueron entrenados.
+
+En este trabajo, se busca detectarlos mediante un método **post-hoc** (agnóstico al entrenamiento), más precisamente, mediante la distancia de **Mahalanobis**. Esta mide cuántos *desvíos estandar* de diferencia hay entre un punto dado y la media de un *feature* determinado, considerando la "forma" de los datos (covarianza).
+
+**¿Cómo calculamos esto?**
+
+Al momento de entrenar el dataset, para cada *feature* se obtiene su `media` y su `matriz de covarianza` (más precisamente, su inversa, utilizando la función [linalg.inv](https://numpy.org/doc/stable/reference/generated/numpy.linalg.inv.html) de *numpy*). Estos datos se guardan en el archivo [ood_reference_stats.npz](./reference/ood_reference_stats.npz).
+
+Posteriormente, luego de cada predicción, [grpc-server](./grpc-server/) realiza el cálculo de la distancia de **Mahalanobis**, y en función del resultado se determina si es un caso de distribución **alta**, **media** o **baja**.
+Los rangos utilizados son:
+
+- **Alta**, si el valor es superior a $25$.
+- **Bajo**, si el valor es inferior a $10$.
+- **Medio**, en otros casos.
+
+Los límites pueden ser configurados mediante los valores `OOD_HIGH` y `OOD_LOW`.
+
+Todos los resultados son registrados como alertas, indicando su valor numérico y su calificación en alta/media/baja. Posteriormente, se guardan en la base de datos de `PostgreSQL` (tablas `ood_alerts` y `security_alerts`).
+
+**Fuentes**
+
+- Papers
+  - [Out-of-Distribution Detection: A Task-Oriented Survey of Recent Advances](https://dl.acm.org/doi/10.1145/3760390).
+  - [Mahalanobis++: Improving OOD Detection via Feature Normalization](https://arxiv.org/abs/2505.18032).
+  - [Out-of-distribution Detection in High-dimensional Data Using Mahalanobis Distance- Critical Analysis](https://www.iccs-meeting.org/archive/iccs2022/papers/133500260.pdf).
+- Artículos
+  - [Out of Distribution Detection: Knowing When AI Doesn't Know](https://www.sei.cmu.edu/blog/out-of-distribution-detection-knowing-when-ai-doesnt-know/).
+  - [Out-of-distribution detection I: anomaly detection](https://rbcborealis.com/research-blogs/out-distribution-detection-i-anomaly-detection/).
+  - [Mahalanobis Distance usage in Machine learning](https://dilipkumar.medium.com/mahalanobis-distance-usage-in-machine-learning-2bd4bcacbcd2).
 
 ## How-to
 
