@@ -251,14 +251,17 @@ sudo docker logs spark-drift-detector
       3. TLS/SSL Mode: `disabled`.
    4. Al final de la pagina, clickear `Save & test`. Esto deberia mostrar un mensaje que dice `Database connection OK`.
    5. En la URL, copiar el `UID` del dashboard. Ejemplo: `http://localhost:3000/connections/datasources/edit/***afin5lvhpbls0b***`.
-7. Agregar Dashboard
+7. Modificar el archivo JSON del dashboard:
+   1. Ir al archivo [security_alerts.json](./grafana/security_alerts.json).
+   2. Buscar y reemplazar el GUID `afin5lvhpbls0b` con el valor del UID del nuevo *data source*.
+   3. Guardar los cambios.
+8. Agregar Dashboard
    1. En el panel izquierdo, ir a `Dashboards`.
    2. `Create Dashboard`.
    3. `import`.
    4. Pegar el codigo de [security_alerts.json](./grafana/security_alerts.json).
    5. Presionar `load`.
-   6. Luego, cambiar el `UID` con el correspondiente de tu data source.
-   7. `Import`.
+   6. `Import`.
 
 ### ¿Cómo hacer consultas en PostgreSQL?
 
