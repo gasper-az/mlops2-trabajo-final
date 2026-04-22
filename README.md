@@ -241,7 +241,7 @@ sudo docker logs spark-drift-detector
 4. En el panel izquierdo, ir a `Connections/Data Sources`.
 5. `Add data source` y luego filtrar por `PostgreSQL`.
 6. Completar con los siguientes datos;
-   1. Name: cualquier nombre, como `postgresql-source`
+   1. Name: `grafana-postgresql-datasource`.
    2. Connection:
       1. Host URL: `postgres:5432`.
       2. Database name: `mlflow`.
