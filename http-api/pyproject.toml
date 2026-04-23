@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "http-api"
+version = "0.1.0"
+description = "Cliente FastAPI para servidor de inferencia gRPC."
+authors = ["Gaspar Acevedo Zain", "Jonathan Borda", "Carlos Villalobos"]
+packages = [{ include = "wine_rest_api", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.110.0"
+uvicorn = "^0.29"
+grpcio = "1.78.0"
+protobuf = "^6.33.6"
+pydantic = "^2.6"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

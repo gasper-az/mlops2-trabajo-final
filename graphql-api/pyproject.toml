@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "graphql-api"
+version = "0.1.0"
+description = "GraphQL (Strawberry) con inferencia vía modelo MLflow."
+authors = ["Gaspar Acevedo Zain", "Jonathan Borda", "Carlos Villalobos"]
+packages = [{ include = "wine_graphql_api", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+strawberry-graphql = { version = "^0.258.0", extras = ["fastapi"] }
+fastapi = "^0.110.0"
+uvicorn = "^0.29"
+mlflow = "3.10.1"
+numpy = "^1.26"
+pandas = "^2.2"
+# Strawberry 0.258 imports pydantic is_new_type (removed in pydantic 2.11+).
+pydantic = ">=2.6,<2.10"
+boto3 = "^1.42.82"
+botocore = "^1.42.82"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

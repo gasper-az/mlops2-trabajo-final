@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package wine.inference.v1;
+
+service WineInferenceService {
+    rpc Predict(PredictRequest) returns (PredictResponse);
+}
+
+message PredictRequest {
+    double alcohol = 1;
+    double malic_acid = 2;
+    double ash = 3;
+    double alcalinity_of_ash = 4;
+    double magnesium = 5;
+    double total_phenols = 6;
+    double flavanoids = 7;
+    double nonflavanoid_phenols = 8;
+    double proanthocyanins = 9;
+    double color_intensity = 10;
+    double hue = 11;
+    double od280_od315 = 12;
+    double proline = 13;
+}
+
+message PredictResponse {
+    int32 predicted_class = 1;
+    string model_version = 2;
+    string request_id = 3;
+}

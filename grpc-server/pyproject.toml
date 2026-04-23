@@ -1,0 +1,26 @@
+[tool.poetry]
+name = "wine-grpc-server"
+version = "0.1.0"
+description = "Servidor de inferencia gRPC para Wine classification."
+authors = ["Gaspar Acevedo Zain", "Jonathan Borda", "Carlos Villalobos"]
+packages = [{ include = "wine_grpc_server", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+grpcio = "1.78.0"
+grpcio-tools = "1.78.0"
+protobuf = "^6.33.6"
+mlflow = "3.10.1"
+numpy = "^1.26"
+pydantic = "^2.6"
+kafka-python = "^2.3.0"
+botocore = "^1.42.82"
+boto3 = "^1.42.82"
+psycopg2-binary = "2.9.10"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.2.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

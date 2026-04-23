@@ -1,0 +1,265 @@
+version: "3.9"
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 minio minio123 --api S3v4; do sleep 2; done &&
+      mc mb -p local/mlflow || true &&
+      mc anonymous set none local/mlflow
+      "
+    restart: "no"
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_DB: mlflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: mlflow/Dockerfile    
+    container_name: mlflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+    ports:
+      - "5000:5000"
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --serve-artifacts
+      --allowed-hosts "*"
+      --backend-store-uri postgresql://mlflow:mlflow@postgres:5432/mlflow
+      --default-artifact-root s3://mlflow/
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5s bash -c ':> /dev/tcp/127.0.0.1/5000' || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+
+  trainer:
+    build:
+      context: .
+      dockerfile: trainer/Dockerfile
+    container_name: trainer
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_EXPERIMENT_NAME: wine-classification
+      MODEL_NAME: WineClassifier
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      OOD_STATS_PATH: /opt/reference/ood_reference_stats.npz
+    restart: "no"
+    volumes:
+      - ./reference:/opt/reference
+
+  grpc-server:
+    build:
+      context: .
+      dockerfile: grpc-server/Dockerfile
+    container_name: grpc-server
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      trainer:
+        condition: service_completed_successfully
+    environment:
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+      GRPC_PORT: 50051
+      KAFKA_ALERT_TOPIC: wine.security.alerts
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC: wine.inference.events
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_NAME: WineClassifier
+      OOD_HIGH: 25.0
+      OOD_LOW: 10.0
+      OOD_STATS_PATH: /opt/app/reference/ood_reference_stats.npz
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: mlflow
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/mlflow
+    ports:
+      - "50051:50051"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.socket(); s.connect(('localhost', 50051)); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./reference:/opt/app/reference
+
+  http-api:
+    build:
+      context: .
+      dockerfile: http-api/Dockerfile
+    container_name: http-api
+    depends_on:
+      grpc-server:
+        condition: service_healthy
+    environment:
+      GRPC_SERVER_HOST: grpc-server
+      GRPC_SERVER_PORT: 50051
+    ports:
+      - "8080:8080"
+
+  graphql-api:
+    build:
+      context: .
+      dockerfile: graphql-api/Dockerfile
+    container_name: graphql-api
+    depends_on:
+      mlflow:
+        condition: service_healthy
+      trainer:
+        condition: service_completed_successfully
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_NAME: WineClassifier
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+    ports:
+      - "8090:8090"
+
+  spark-drift-detector:
+    build:
+      context: .
+      dockerfile: spark-drift-detector/Dockerfile
+    environment:
+      ALERT_TOPIC: wine.security.alerts
+      DRIFT_Z_THRESHOLD: 3.0
+      KAFKA_ALERT_TOPIC: wine.security.alerts
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC: wine.inference.events
+      MODEL_NAME: WineClassifier
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: mlflow
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_JDBC_URL: jdbc:postgresql://postgres:5432/mlflow
+      REFERENCE_STATS_PATH: "/opt/app/reference/reference_stats.json"
+      POISON_VARIANCE_RATIO: 0.3
+      ### CONFIG A
+      # SLIDE_DURATION: "10 seconds"
+      # WINDOW_DURATION: "1 minutes"
+      ### CONFIG B
+      SLIDE_DURATION: "1 minutes"
+      WINDOW_DURATION: "5 minutes"
+      ### CONFIG C
+      # SLIDE_DURATION: "30 seconds"
+      # WINDOW_DURATION: "1 minutes"
+    container_name: spark-drift-detector
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./reference:/opt/app/reference
+    restart: unless-stopped
+    ports:
+      - "4040:4040"
+
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy    
+
+volumes:
+  minio-data:
+  pg-data:
